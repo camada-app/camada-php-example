@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace CamadaExample\Tests;
 
+use Camada\Transport\HttpRequest;
+use Camada\Transport\StreamTransport;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
 
@@ -106,27 +108,10 @@ final class ServerTest extends TestCase
      */
     private function request(string $method, string $path, array $headers = [], ?string $body = null): array
     {
-        $h = '';
-        foreach ($headers as $k => $v) {
-            $h .= "{$k}: {$v}\r\n";
-        }
-        $ctx = stream_context_create(['http' => ['method' => $method, 'header' => $h, 'content' => $body ?? '', 'ignore_errors' => true, 'timeout' => 10, 'follow_location' => 0]]);
-        $out = @file_get_contents($this->url . $path, false, $ctx);
-        Assert::assertIsString($out, "no answer for {$method} {$path}\n" . $this->serverOutput());
-        $raw = function_exists('http_get_last_response_headers') ? http_get_last_response_headers() : ($http_response_header ?? []);
-        $status = 0;
-        $parsed = [];
-        foreach (is_array($raw) ? $raw : [] as $line) {
-            if (preg_match('~^HTTP/\S+ (\d{3})~', (string) $line, $m) === 1) {
-                $status = (int) $m[1];
-                continue;
-            }
-            $colon = strpos((string) $line, ':');
-            if ($colon !== false) {
-                $parsed[strtolower(substr((string) $line, 0, $colon))] = trim(substr((string) $line, $colon + 1));
-            }
-        }
-        return ['status' => $status, 'headers' => $parsed, 'body' => $out];
+        // the SDK's own stream client: lower-cased header names, a 4xx is an answer, status 0 is none
+        $r = (new StreamTransport())->send(new HttpRequest($method, $this->url . $path, $headers, $body, 10.0));
+        Assert::assertNotSame(0, $r->status, "no answer for {$method} {$path}\n" . $this->serverOutput());
+        return ['status' => $r->status, 'headers' => $r->headers, 'body' => $r->body];
     }
 
     public function testPagesRenderWithTheFirstPartyBeacon(): void

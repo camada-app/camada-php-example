@@ -12,10 +12,15 @@ use Camada\Camada;
 use Camada\Context;
 use Camada\Http\Sapi;
 
-// minimal .env loader so the example has zero extra dependencies; the environment wins over the file
+// minimal .env loader so the example has zero extra dependencies; the environment wins over the file,
+// and a value in matching quotes (what most .env tooling writes) is read without them
 foreach (@file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
     if (preg_match('/^([A-Z_]+)=(.*)$/', trim($line), $m) === 1 && getenv($m[1]) === false) {
-        putenv("{$m[1]}={$m[2]}");
+        $v = $m[2];
+        if (strlen($v) >= 2 && ($v[0] === '"' || $v[0] === "'") && $v[-1] === $v[0]) {
+            $v = substr($v, 1, -1);
+        }
+        putenv("{$m[1]}={$v}");
     }
 }
 
