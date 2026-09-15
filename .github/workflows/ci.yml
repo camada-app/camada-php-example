@@ -7,13 +7,18 @@ jobs:
       matrix:
         php: ["8.1", "8.3", "8.5"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { path: camada-php-example }
       # camada/camada is a path dependency on the sibling checkout; the SDK vendors its own beacon build.
-      - uses: actions/checkout@v4
-        with: { repository: ${{ github.repository_owner }}/camada-php, path: camada-php }
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/camada-php
+          path: camada-php
       - uses: shivammathur/setup-php@v2
-        with: { php-version: "${{ matrix.php }}", extensions: json, zlib, coverage: none }
+        with:
+          php-version: "${{ matrix.php }}"
+          extensions: "json, zlib"
+          coverage: none
       - run: composer install --no-interaction --no-progress
         working-directory: camada-php-example
       - run: composer test
