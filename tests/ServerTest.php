@@ -184,11 +184,12 @@ final class ServerTest extends TestCase
         self::assertStringContainsString('/__camada/challenge', $r['body']);
     }
 
-    public function testChallengeMeAnswersJsonToAnApiClient(): void
+    public function testChallengeMeSignalsAnApiClient(): void
     {
         $r = $this->request('GET', '/challenge-me', ['x-forwarded-for' => '198.51.100.7']);
-        self::assertSame(403, $r['status']);
-        self::assertSame(['error' => 'challenge_required'], json_decode($r['body'], true));
+        self::assertSame(200, $r['status']);
+        self::assertSame('1', $r['headers']['x-camada-challenge'] ?? '');
+        self::assertSame('no-store', $r['headers']['cache-control'] ?? '');
     }
 
     public function testUnknownPathRendersThe404Page(): void
