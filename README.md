@@ -1,14 +1,19 @@
 # camada-php-example
 
-A plain-PHP front controller wired with [`camada`](../camada-php) against a locally running
+A plain-PHP front controller wired with [`camada`](https://github.com/camada-app/camada-php) against a locally running
 edge-analyst. This is the hand-test bench for the PHP SDK, the twin of
-[`camada-python-example`](../camada-python-example). No framework on purpose: the point is that
+[`camada-python-example`](https://github.com/camada-app/camada-python-example). No framework on purpose: the point is that
 the SDK works with `$_SERVER`, `php://input` and `header()` alone (`public/index.php` is the whole
 app; Laravel users take `Camada\Laravel\Middleware` instead).
 
+## Documentation
+
+- [PHP SDK guide](https://www.camada.app/docs/php) and quickstarts for [Plain PHP](https://www.camada.app/docs/quickstart/php) and [Laravel](https://www.camada.app/docs/quickstart/laravel).
+- [In-app bot detection](https://www.camada.app/bot-detection), [Test your bot signals](https://www.camada.app/tools/bot-test), and [Pricing](https://www.camada.app/pricing).
+
 ## Setup
 
-1. Terminal A — `cd ../camada/edge-analyst && npm run dev` (analyst on :8787), then
+1. Terminal A: `cd ../camada/edge-analyst && npm run dev` (analyst on :8787), then
    `npm run seed` in a second terminal. Note the printed `CAMADA_KEY`.
 2. Here: `cp .env.example .env` (paste the key if it differs), `composer install`, then
    `composer serve` → http://localhost:3005. That is
@@ -25,10 +30,10 @@ the peer, so nothing stands between the header and camada's trusted-proxy rules.
 
 PHP has no long-lived process, so the SDK keeps its runtime **on disk**, shared by every worker:
 the snapshot (`snapshot.bin`, seeked into per request), its state, and the event spool
-(`events.ndjson`) live in `CAMADA_CACHE_DIR` — by default `<system temp dir>/camada-<hash of the
-snapshot token>`; `ls "$(php -r 'echo sys_get_temp_dir();')"/camada-*` shows it. Nothing polls in
+(`events.ndjson`) live in `CAMADA_CACHE_DIR` (by default `<system temp dir>/camada-<hash of the
+snapshot token>`; `ls "$(php -r 'echo sys_get_temp_dir();')"/camada-*` shows it). Nothing polls in
 the background: a request whose cached snapshot is stale arms a refresh, and a request that finds
-the spool due (≥ 500 rows, or 15 s since the last flush) ships it — both **after the response has
+the spool due (≥ 500 rows, or 15 s since the last flush) ships it, both **after the response has
 left**. Under `php -S` that means the body goes out with a `Content-Length`, the client stops
 reading, and the worker does the deferred work before taking its next connection. Under
 PHP-FPM it is `fastcgi_finish_request()`. So: events reach the analyst on the *next* request after
@@ -41,22 +46,22 @@ and the trusted-proxy config should say `none`; without it, `REMOTE_ADDR` is ngi
 
 ## Hand test (what to look for)
 
-1. Browse `http://localhost:3005` — the page renders; devtools → Network shows
+1. Browse `http://localhost:3005`: the page renders; devtools → Network shows
    `/_cam/b.js?r=<uuid>` (200, JavaScript) and ~2 s later `POST /_cam/fp` (204). The document
    response carries an `x-rid` header and sets the `_sfp` cookie.
-2. Click/type before the beacon fires — the `/_cam/fp` payload's `input` counters are non-zero.
+2. Click/type before the beacon fires: the `/_cam/fp` payload's `input` counters are non-zero.
 3. `curl -i http://localhost:3005/ -H 'X-Forwarded-For: 203.0.113.66'` → **403** with
    `x-block-reason: rule` and `x-block-rule: builtin:block` (the seed blocks that IP as an entry
    of the built-in block list on snapshot v5). The very first request after boot answers **200**
-   instead — see below.
+   instead (see below).
 4. Fail three logins (`demo@example.com` / anything wrong) via `/login-form`, make one more
    request after 15 s so the spool ships, then run an analysis
-   (`curl -s -X POST -H 'authorization: Bearer dev' 'http://localhost:8787/admin/run?tenant=acme&minutes=10'`) —
+   (`curl -s -X POST -H 'authorization: Bearer dev' 'http://localhost:8787/admin/run?tenant=acme&minutes=10'`):
    events include `login_failed` rows with a hashed `uid`; your raw email appears nowhere.
-5. Kill the analyst (Ctrl-C in terminal A) and reload the page + `curl localhost:3005/api/data` —
+5. Kill the analyst (Ctrl-C in terminal A) and reload the page + `curl localhost:3005/api/data`:
    everything still answers 200; the app's terminal shows at most one
    `[camada] suppressed error` line a minute. That is fail-open.
-6. Restart this app with `CAMADA_DISABLED=1` — no `x-rid` header, no `/_cam/b.js` requests:
+6. Restart this app with `CAMADA_DISABLED=1`: no `x-rid` header, no `/_cam/b.js` requests:
    the kill switch bypasses the SDK entirely.
 
 ## The first request after boot is cold
@@ -64,7 +69,7 @@ and the trusted-proxy config should say `none`; without it, `REMOTE_ADDR` is ngi
 The engine is built on the first request through `Sapi::run()`, and the request path never opens
 a socket: the first request reads an empty cache, falls open (a `curl` from the blocked IP right
 after boot gets `200` with an `x-rid`) and arms the refresh, which runs after that response has
-left. The next request enforces from the cached container — a few hundred milliseconds later
+left. The next request enforces from the cached container, a few hundred milliseconds later
 against a local analyst (the e2e measures it with a 250 ms probe; the figure is snapshot-size and
 network bound), then `403`. `node scripts/e2e-sdk-php.mjs` in `../camada/edge-analyst` makes that
 first request itself and asserts both answers. The cache survives restarts by design: a
@@ -86,10 +91,10 @@ if ($cam->snap !== null) {                    // null when CAMADA_KEY is unset o
 
 ## Challenge (SDK-04)
 
-`/challenge-me` forces the first-party proof-of-work challenge, whatever the snapshot says — the
+`/challenge-me` forces the first-party proof-of-work challenge, whatever the snapshot says: the
 same page camada serves automatically for a `challenge` verdict.
 
-1. Browse `http://localhost:3005/challenge-me` — "Checking your browser" appears, the inline
+1. Browse `http://localhost:3005/challenge-me`: "Checking your browser" appears, the inline
    solver hunts a SHA-256 with 16 leading zero bits (tens of milliseconds), the hidden form
    posts to `/__camada/challenge`, and the browser lands on "Challenge passed". Devtools shows
    the `_cch` cookie (`HttpOnly`, `SameSite=Lax`, one hour); reload and the page renders at once.
@@ -102,11 +107,11 @@ same page camada serves automatically for a `challenge` verdict.
    one ships `st: 200, ch: 1`, and a signalled one (step 3) ships `st: 200, chs: 1`.
 
 The nonce and the cookie are bound to the client IP, so camada serves no challenge to a request
-it cannot identify (no trusted-proxy config and no socket address). Clear `_cch` — or open a
-private window — to see the check again.
+it cannot identify (no trusted-proxy config and no socket address). Clear `_cch` (or open a
+private window) to see the check again.
 
 ## Tests
 
-`composer test` — the routes over a real `php -S` against an engine whose analyst URL is a closed
+`composer test`: runs the routes over a real `php -S` against an engine whose analyst URL is a closed
 port (cold, fail open; the challenge needs no snapshot), each test on its own cache dir, plus a
 guard that `vendor/camada/camada` is the sibling checkout at its current version.

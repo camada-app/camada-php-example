@@ -2,7 +2,12 @@
     "name": "camada/camada-php-example",
     "description": "A plain-PHP front controller wired with camada against a local edge-analyst: the hand-test bench for the PHP SDK.",
     "type": "project",
+    "homepage": "https://www.camada.app/docs/quickstart/php",
     "license": "MIT",
+    "support": {
+        "docs": "https://www.camada.app/docs/php",
+        "source": "https://github.com/camada-app/camada-php-example"
+    },
     "repositories": [
         { "type": "path", "url": "../camada-php" }
     ],
